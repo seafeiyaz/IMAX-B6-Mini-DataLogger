@@ -1,0 +1,13 @@
+# =============================================================
+#  SkyRC iMAX B6 Mini Data Logger - Python Dependencies
+# =============================================================
+#  Install with:  pip install -r requirements.txt
+# =============================================================
+
+# USB HID communication library (core dependency)
+# The B6 Mini uses USB HID, NOT a serial COM port
+hidapi>=0.14
+
+# Optional: pandas for post-processing the output CSV
+# pandas>=2.0
+# numpy>=1.24
