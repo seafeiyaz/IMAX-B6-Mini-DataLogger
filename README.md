@@ -4,7 +4,9 @@ A robust, production-ready Python data logger designed to interface directly wit
 
 ## Project Context
 
-This data logger was specifically built to collect high-fidelity, synchronized time-series datasets. The structure of the output CSV ensures that the telemetry dataset is immediately clean, normalized, and formatted for direct parsing into `pandas` dataframes for machine learning pipelines.
+This data logger was specifically built to collect high-fidelity, synchronized time-series datasets. The generated data is optimized for training a **Hybrid Deep Learning (CNN-LSTM)** architecture for **State of Charge (SOC) estimation** of a **single-cell (1S) 18650 Lithium-Ion battery** under a simulated artificial load. 
+
+The structure of the output CSV ensures that the telemetry dataset is immediately clean, normalized, and formatted for direct parsing into `pandas` dataframes for machine learning pipelines.
 
 ## Key Features
 
@@ -12,25 +14,6 @@ This data logger was specifically built to collect high-fidelity, synchronized t
 - **Real-Time Data Persistence:** Telemetry rows are appended directly to the disk (`.csv`) line-by-line in real-time. No memory buffering is utilized, ensuring data integrity even during sudden script interruptions (`Ctrl+C`).
 - **Dual-Axis Timestamps:** Generates both high-resolution Unix Epoch seconds (for precise delta-time calculations) and human-readable strict ISO-8601 formatting for absolute time alignment.
 - **Fault-Tolerant Reconnect Loop:** Automatically traps `IOError` and `OSError` exceptions. If the physical USB cable is disconnected mid-test, the logger enters an automated 5-second polling state to resume session tracking seamlessly without breaking the ongoing CSV file structure.
-- **Visual Telemetry Dashboard:** A clean, color-coded terminal command-line interface (CLI) prints live status changes, voltage warning thresholds, and test durations.
-
-## Extractable Metrics & Protocol Mapping
-
-The script queries the charger at regular intervals and decodes the incoming 64-byte raw HID report payload based on reverse-engineered byte boundaries:
-
-| CSV Header Component | Physical Parameter | Precision / DataType | Protocol Byte Mapping |
-| :--- | :--- | :--- | :--- |
-| `timestamp_iso` | Absolute Date & Time | ISO-8601 string (UTC) | System Clock |
-| `timestamp_unix` | High-Res Epoch Time | Float (Millisecond) | System Clock |
-| `voltage_V` | Total Battery Voltage | Float (Volts) | `(data[9] * 256 + data[10]) / 1000.0` |
-| `current_A` | Charge/Discharge Current| Float (Amperes) | `(data[11] * 256 + data[12]) / 1000.0` |
-| `capacity_mAh` | Accumulated Capacity | Integer (mAh) | `data[5] * 256 + data[6]` |
-| `ext_temperature_C` | External Probe Temp | Integer (Celsius) | `data[13]` |
-| `int_temperature_C` | Internal Charger Temp | Integer (Celsius) | `data[14]` |
-| `timer_s` | Operational Timer | Integer (Seconds) | `data[7] * 256 + data[8]` |
-| `state_id` | Operation State Code | Integer (Enum ID) | `data[4]` |
-| `state_label` | Readable Operation State| String (Label) | Mapped via `STATE_MAP` |
-| `cell1_V` | Individual Cell 1 Voltage| Float (Volts) | `(data[17] * 256 + data[18]) / 1000.0` |
 
 ## Hardware Prerequisites
 
@@ -64,28 +47,87 @@ The script queries the charger at regular intervals and decodes the incoming 64-
    pip install -r requirements.txt
    ```
 
-## Operational Guide
+## All Available Commands
 
-### 1. Hardware Diagnostic Scan
-Verify Windows/Linux hardware detection and locate the operational Vendor ID (VID) and Product ID (PID) parameters before scheduling a run cycle:
-```bash
-python imax_b6_logger.py --scan
-```
-> *Expected typical hardware reference: `VID=0x0000 PID=0x0001` labeled as `Silicon Laboratories C8051F3xx Development Board`.*
+| Flag | Short | Type | Default | Description |
+|------|-------|------|---------|-------------|
+| `--scan` | — | flag | — | List all USB HID devices, then exit |
+| `--vid` | — | hex | `0x0000` | USB Vendor ID of the charger |
+| `--pid` | — | hex | `0x0001` | USB Product ID of the charger |
+| `--output` | `-o` | text | auto-timestamped | Custom CSV filename |
+| `--interval` | `-i` | number | `1` | Sampling interval in seconds |
+| `--help` | `-h` | flag | — | Show help message |
 
-### 2. Standard Logging Execution
-Launches automated scanning routines to locate the first available iMAX B6 Mini device and begins writing telemetry records to the root directory at a high-resolution 1-second sampling rate:
-```bash
+---
+
+## Usage Examples
+
+### 1. Basic run (auto everything)
+```powershell
 python imax_b6_logger.py
 ```
+Connects to your B6 Mini, logs every 1 second, auto-generates `imax_b6_log_YYYYMMDD_HHMMSS.csv`.
 
-### 3. Advanced Custom Parameters
-For customized dataset acquisition sessions, pass specific override flags to modify polling frequencies, targeting signatures, or explicit file routing:
-```bash
-python imax_b6_logger.py --vid 0x0000 --pid 0x0001 --interval 5.0 --output ./datasets/charge_cycle_test_01.csv
+### 2. Scan HID devices
+```powershell
+python imax_b6_logger.py --scan
+```
+Lists all USB HID devices on your PC so you can identify the charger's VID/PID. Useful for troubleshooting.
+
+### 3. Custom output filename
+```powershell
+python imax_b6_logger.py -o charge_1A_cycle01.csv
+```
+Saves data to a specific filename for organized grouping.
+
+### 4. Change sampling interval
+```powershell
+# Log every 5 seconds (smaller file, good for long tests)
+python imax_b6_logger.py -i 5
+
+# Log every 10 seconds
+python imax_b6_logger.py -i 10
+
+# Log as fast as possible (~1 second)
+python imax_b6_logger.py -i 1
 ```
 
-> **Note:** To safely terminate an active data capture run, submit a keyboard interrupt (`Ctrl + C`) inside the terminal interface. The script will safely close active IO file streams without corruption.
+### 5. Combine multiple flags
+```powershell
+# Custom name + 5 second interval
+python imax_b6_logger.py -o discharge_0.5A_test03.csv -i 5
+
+# Specific VID/PID + custom output + 2 second interval
+python imax_b6_logger.py --vid 0x0000 --pid 0x0001 -o my_test.csv -i 2
+```
+
+### 6. Show help
+```powershell
+python imax_b6_logger.py --help
+```
+
+### 7. Stop logging
+Press **`Ctrl + C`** at any time. Data already written to CSV is safe — nothing is lost.
+
+---
+
+## CSV Output Columns
+
+Each row in the output CSV contains:
+
+| Column | Example | Description |
+|--------|---------|-------------|
+| `timestamp_iso` | `2026-05-25T00:41:00.123Z` | ISO-8601 UTC timestamp |
+| `timestamp_unix` | `1779724860.123` | Unix epoch (for Pandas) |
+| `voltage_V` | `3.8520` | Battery voltage in Volts |
+| `current_A` | `1.0000` | Current in Amps |
+| `capacity_mAh` | `1250` | Accumulated capacity in mAh |
+| `ext_temperature_C` | `28` | External temp sensor |
+| `int_temperature_C` | `32` | Internal charger temp |
+| `timer_s` | `3600` | Elapsed time in seconds |
+| `state_id` | `1` | Raw state number |
+| `state_label` | `Charging` | Human-readable state |
+| `cell1_V` | `3.8520` | Cell 1 voltage |
 
 ## Quick Data Science Pipeline Example
 
