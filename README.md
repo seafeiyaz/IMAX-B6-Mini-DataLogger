@@ -1,26 +1,32 @@
-# SkyRC iMAX B6 Mini - USB HID Data Logger
+# SkyRC iMAX B6 Mini - USB HID Data Logger (CLI & GUI)
 
-A robust, production-ready Python data logger designed to interface directly with the SkyRC iMAX B6 Mini charger via the **USB HID (Human Interface Device)** protocol. This tool bypasses the standard, often unreliable virtual COM ports to establish a direct, high-frequency telemetry stream.
+<img width="1370" height="972" alt="image" src="https://github.com/user-attachments/assets/d7a2585b-e2e2-4da5-9b7d-1638a8ecefa8" />
+
+
+A robust, production-ready Python data logging suite designed to interface directly with the SkyRC iMAX B6 Mini charger via the **USB HID (Human Interface Device)** protocol. This tool bypasses standard, often unreliable virtual COM ports to establish a direct, high-frequency telemetry stream. 
+
+The suite now includes both a headless **Command Line Interface (CLI)** for automated tests and a rich **Graphical User Interface (GUI)** for live monitoring.
 
 ## Project Context
 
-This data logger was specifically built to collect high-fidelity, synchronized time-series datasets. The generated data is optimized for training a **Hybrid Deep Learning (CNN-LSTM)** architecture for **State of Charge (SOC) estimation** of a **single-cell (1S) 18650 Lithium-Ion battery** under a simulated artificial load. 
+This data logger was specifically built to collect high-fidelity, synchronized time-series datasets. The structure of the output CSV ensures that the telemetry dataset is immediately clean, normalized, and formatted for direct parsing into `pandas` dataframes for machine learning pipelines.
 
-The structure of the output CSV ensures that the telemetry dataset is immediately clean, normalized, and formatted for direct parsing into `pandas` dataframes for machine learning pipelines.
+## Comparison: CLI Logger vs GUI Logger
 
-## Key Features
+| Feature | `imax_b6_logger.py` (CLI) | `imax_b6_gui.py` (GUI) |
+|---------|---------------------------|------------------------|
+| **Interface** | Terminal / command line | Desktop window with buttons |
+| **Real-time charts**| No | Yes (Voltage, Current, Capacity) |
+| **Metric display** | Text rows in terminal | Visual cards with colors |
+| **CSV naming** | Via `--output` flag or auto | File dialog popup |
+| **Switch CSV** | No (must restart) | Yes ("New CSV File" button) |
+| **Sampling interval**| Via `--interval` flag | Dropdown selector (live) |
+| **HID device scan** | Via `--scan` flag | No (auto-connects to default) |
+| **Custom VID/PID** | Via `--vid` / `--pid` flags | No (hardcoded `0x0000:0x0001`) |
+| **Best for** | Headless / automated / long runs | Interactive monitoring / demos to supervisor |
+| **Dependencies** | `hidapi` | `hidapi` + `matplotlib` |
 
-- **Native USB HID Communication:** Built on top of `hidapi`, eliminating connection drops, driver mismatch, or protocol conflicts associated with virtual serial (UART-over-USB) COM ports.
-- **Real-Time Data Persistence:** Telemetry rows are appended directly to the disk (`.csv`) line-by-line in real-time. No memory buffering is utilized, ensuring data integrity even during sudden script interruptions (`Ctrl+C`).
-- **Dual-Axis Timestamps:** Generates both high-resolution Unix Epoch seconds (for precise delta-time calculations) and human-readable strict ISO-8601 formatting for absolute time alignment.
-- **Fault-Tolerant Reconnect Loop:** Automatically traps `IOError` and `OSError` exceptions. If the physical USB cable is disconnected mid-test, the logger enters an automated 5-second polling state to resume session tracking seamlessly without breaking the ongoing CSV file structure.
-
-## Hardware Prerequisites
-
-1. **Charger:** Genuine SkyRC iMAX B6 Mini.
-2. **Interface Cable:** High-quality Micro-USB data cable (verify it contains physical data lines and is not a charge-only cord).
-3. **Target Cell:** 1S 18650 Lithium-Ion cell.
-4. **Load Configuration:** External simulated artificial load connected via the discharge output terminals.
+---
 
 ## Installation & Environment Setup
 
@@ -42,12 +48,38 @@ The structure of the output CSV ensures that the telemetry dataset is immediatel
    source venv/bin/activate
    ```
 
-3. **Install low-level HID bindings:**
+3. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
+   # Note: To use the GUI, ensure matplotlib is installed (pip install matplotlib)
    ```
 
-## All Available Commands
+---
+
+## 1. Using the GUI Logger (`imax_b6_gui.py`)
+
+Launch the application directly from your terminal:
+```powershell
+python imax_b6_gui.py
+```
+*(No command-line flags are needed — everything is controlled through the UI).*
+
+### GUI Workflow
+1. **Launch:** Run the script to open the dashboard.
+2. **Connect:** Click the green **[Connect]** button to establish the USB link.
+3. **Monitor:** Watch live telemetry via the metric cards and the 3 live charts (updating every 0.5s).
+4. **Start Logging:** Click **[Start Logging]**, name your CSV file, and data will begin appending.
+5. **Mid-Session:** Need to separate cycles? Click **[New CSV File]** to seamlessly switch output files without stopping.
+6. **Clear View:** Click **[Clear Chart]** to reset the visual graphs (does not affect CSV logging).
+7. **Stop & Close:** Click **[Stop Logging]** and close the window safely.
+
+---
+
+## 2. Using the CLI Logger (`imax_b6_logger.py`)
+
+The CLI is perfect for long, unattended overnight runs or automated batch logging.
+
+### All Available Commands
 
 | Flag | Short | Type | Default | Description |
 |------|-------|------|---------|-------------|
@@ -58,62 +90,30 @@ The structure of the output CSV ensures that the telemetry dataset is immediatel
 | `--interval` | `-i` | number | `1` | Sampling interval in seconds |
 | `--help` | `-h` | flag | — | Show help message |
 
----
+### Usage Examples
 
-## Usage Examples
-
-### 1. Basic run (auto everything)
 ```powershell
+# Basic run (auto connects, logs every 1 sec, auto-names CSV)
 python imax_b6_logger.py
-```
-Connects to your B6 Mini, logs every 1 second, auto-generates `imax_b6_log_YYYYMMDD_HHMMSS.csv`.
 
-### 2. Scan HID devices
-```powershell
+# Scan HID devices to find your charger's VID/PID for troubleshooting
 python imax_b6_logger.py --scan
+
+# Custom output filename + 5 second interval
+python imax_b6_logger.py -o charge_1A_cycle01.csv -i 5
+
+# Explicit VID/PID targeting
+python imax_b6_logger.py --vid 0x0000 --pid 0x0001
+
+# Stop logging safely at any time
+Ctrl + C
 ```
-Lists all USB HID devices on your PC so you can identify the charger's VID/PID. Useful for troubleshooting.
-
-### 3. Custom output filename
-```powershell
-python imax_b6_logger.py -o charge_1A_cycle01.csv
-```
-Saves data to a specific filename for organized grouping.
-
-### 4. Change sampling interval
-```powershell
-# Log every 5 seconds (smaller file, good for long tests)
-python imax_b6_logger.py -i 5
-
-# Log every 10 seconds
-python imax_b6_logger.py -i 10
-
-# Log as fast as possible (~1 second)
-python imax_b6_logger.py -i 1
-```
-
-### 5. Combine multiple flags
-```powershell
-# Custom name + 5 second interval
-python imax_b6_logger.py -o discharge_0.5A_test03.csv -i 5
-
-# Specific VID/PID + custom output + 2 second interval
-python imax_b6_logger.py --vid 0x0000 --pid 0x0001 -o my_test.csv -i 2
-```
-
-### 6. Show help
-```powershell
-python imax_b6_logger.py --help
-```
-
-### 7. Stop logging
-Press **`Ctrl + C`** at any time. Data already written to CSV is safe — nothing is lost.
 
 ---
 
 ## CSV Output Columns
 
-Each row in the output CSV contains:
+Both the GUI and CLI produce the **identical CSV format** — ensuring 100% compatibility with your deep learning pipelines. Each row contains:
 
 | Column | Example | Description |
 |--------|---------|-------------|
